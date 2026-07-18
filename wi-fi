@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wi-Fi 内線電話 (P2Pネットワーク版)</title>
+    <style>
+        :root {
+            --primary-color: #007aff;
+            --success-color: #34c759;
+            --danger-color: #ff3b30;
+            --bg-color: #f2f2f7;
+            --card-bg: #ffffff;
+            --text-color: #1c1c1e;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+
+        .container {
+            background-color: var(--card-bg);
+            border-radius: 20px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            width: 100%;
+            max-width: 450px;
+            box-sizing: border-box;
+        }
+
+        h1 {
+            font-size: 24px;
+            text-align: center;
+            margin-top: 0;
+            margin-bottom: 20px;
+        }
+
+        .status-badge {
+            display: block;
+            text-align: center;
+            padding: 12px;
+            border-radius: 10px;
+            background-color: #e5e5ea;
+            font-weight: bold;
+            margin-bottom: 20px;
+            font-size: 15px;
+            transition: all 0.3s;
+        }
+
+        .status-badge.waiting {
+            background-color: #e1f5fe;
+            color: #0288d1;
+        }
+
+        .status-badge.calling {
+            background-color: #fff9c4;
+            color: #f57f17;
+        }
+
+        .status-badge.connected {
+            background-color: var(--success-color);
+            color: white;
+        }
+
+        .section {
+            margin-bottom: 20px;
+            border: 1px solid #d1d1d6;
+            border-radius: 12px;
+            padding: 15px;
+            background-color: #fafafa;
+        }
+
+        .section-title {
+            font-size: 14px;
+            font-weight: bold;
+            margin-top: 0;
+            margin-bottom: 12px;
+            color: #666;
+        }
+
+        .input-group {
+            margin-bottom: 15px;
+        }
+
+        input[type="tel"] {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #c7c7cc;
+            border-radius: 8px;
+            font-size: 18px;
+            letter-spacing: 1px;
+            text-align: center;
+            box-sizing: border-box;
+        }
+
+        button {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .btn-success {
+            background-color: var(--success-color);
+            color: white;
+        }
+
+        .btn-danger {
+            background-color: var(--danger-color);
+            color: white;
+            margin-top: 15px;
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+    <!-- ネットワーク仲介用の外部ライブラリを1本だけ読み込みます -->
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+</head>
+<body>
+
+<div class="container">
+    <h1>Wi-Fi 内線電話</h1>
+    <div id="status" class="status-badge">通信システム準備中...</div>
+
+    <!-- 自身の番号設定 -->
+    <div id="my-number-section" class="section">
+        <div class="section-title">自分の090番号を設定</div>
+        <div class="input-group">
+            <input type="tel" id="my-number" placeholder="090-0000-0000" maxlength="13">
+        </div>
+        <button id="btn-register" class="btn-primary">この番号で待受開始</button>
+    </div>
+
+    <!-- ダイヤル発信パネル -->
+    <div id="dial-section" class="section hidden">
+        <div class="section-title">相手に電話をかける</div>
+        <div class="input-group">
+            <input type="tel" id="target-number" placeholder="090-0000-0000" maxlength="13">
+        </div>
+        <button id="btn-call" class="btn-success">発信</button>
+    </div>
+
+    <!-- 通話制御ボタン -->
+    <button id="btn-hangup" class="btn-danger hidden">通話を終了</button>
+</div>
+
+<script>
+    // 電話番号の自動ハイフン整形ロジック
+    function formatPhoneNumber(input) {
+        let value = input.value.replace(/\D/g, '');
+        if (value.length > 3 && value.length <= 7) {
+            value = value.replace(/^(\d{3})(\d+)/, '$1-$2');
+        } else if (value.length > 7) {
+            value = value.replace(/^(\d{3})(\d{4})(\d+)/, '$1-$2-$3');
+        }
+        input.value = value;
+    }
+
+    const myNumberInput = document.getElementById('my-number');
+    const targetNumberInput = document.getElementById('target-number');
+    myNumberInput.addEventListener('input', () => formatPhoneNumber(myNumberInput));
+    targetNumberInput.addEventListener('input', () => formatPhoneNumber(targetNumberInput));
+
+    const statusBadge = document.getElementById('status');
+    const btnHangup = document.getElementById('btn-hangup');
+    const dialSection = document.getElementById('dial-section');
+    const myNumberSection = document.getElementById('my-number-section');
+
+    let peer = null;
+    let currentCall = null;
+    let localStream = null;
+    let myNumber = '';
+
+    // 初期状態のメッセージ
+    statusBadge.textContent = "自分の番号を設定してください";
+
+    // 自分の番号を登録して待受開始
+    document.getElementById('btn-register').addEventListener('click', () => {
+        const rawNumber = myNumberInput.value.trim();
+        if (rawNumber.length < 13) {
+            alert('090番号を正しく入力してください（11桁）');
+            return;
+        }
+
+        myNumber = rawNumber;
+        statusBadge.textContent = "サーバーに接続中...";
+        statusBadge.className = "status-badge waiting";
+
+        // 不要な文字を取り除いた一意のIDでPeerオブジェクトを作成
+        const peerId = 'wifi-naisen-' + myNumber.replace(/-/g, '');
+        
+        // 無料のパブリックシグナリングサーバーを利用
+        peer = new Peer(peerId, {
+            debug: 1
+        });
+
+        // 待受サーバーに繋がったら
+        peer.on('open', (id) => {
+            statusBadge.textContent = `${myNumber} で着信待受中`;
+            myNumberSection.classList.add('hidden');
+            dialSection.classList.remove('hidden');
+        });
+
+        peer.on('error', (err) => {
+            console.error(err);
+            if (err.type === 'unavailable-id') {
+                alert('この番号はすでに他の端末で待受中です。別な番号にしてください。');
+            } else {
+                alert('通信エラーが発生しました: ' + err.type);
+            }
+            resetToData();
+        });
+
+        // 着信時の処理
+        peer.on('call', async (incomingCall) => {
+            // 相手のIDから電話番号の形に戻す
+            const fromId = incomingCall.peer.replace('wifi-naisen-', '');
+            const formattedFrom = fromId.replace(/^(\d{3})(\d{4})(\d{4})$/, '$1-$2-$3');
+
+            if (confirm(`${formattedFrom} から内線着信があります。\n応答しますか？`)) {
+                try {
+                    statusBadge.textContent = "応答中...";
+                    // マイクの取得
+                    localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                    
+                    // 電話に出て、自分の声を返す
+                    incomingCall.answer(localStream);
+                    setupCallHandling(incomingCall, formattedFrom);
+                } catch (e) {
+                    alert("マイクの起動に失敗しました: " + e.message);
+                    incomingCall.close();
+                }
+            } else {
+                incomingCall.close();
+            }
+        });
+    });
+
+    // ダイヤル発信（こちらからかける）
+    document.getElementById('btn-call').addEventListener('click', async () => {
+        const targetNumber = targetNumberInput.value.trim();
+        if (targetNumber.length < 13) {
+            alert('相手の090番号を正しく入力してください');
+            return;
+        }
+        if (targetNumber === myNumber) {
+            alert('自分の番号には発信できません');
+            return;
+        }
+
+        statusBadge.textContent = `${targetNumber} を呼出中...`;
+        statusBadge.className = "status-badge calling";
+        dialSection.classList.add('hidden');
+        btnHangup.classList.remove('hidden');
+
+        try {
+            // 自分のマイクを取得
+            localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+            
+            // 相手のIDを特定して発信
+            const targetPeerId = 'wifi-naisen-' + targetNumber.replace(/-/g, '');
+            const call = peer.call(targetPeerId, localStream);
+            
+            setupCallHandling(call, targetNumber);
+        } catch (e) {
+            alert("発信エラー、またはマイクが許可されていません: " + e.message);
+            resetToData();
+        }
+    });
+
+    // 通話イベントの管理（音声ストリームの紐付けなど）
+    function setupCallHandling(call, partnerNumber) {
+        currentCall = call;
+
+        // 相手の音声ストリームが届いた時の処理
+        call.on('stream', (remoteStream) => {
+            statusBadge.textContent = `通話中 (${partnerNumber})`;
+            statusBadge.className = "status-badge connected";
+            dialSection.classList.add('hidden');
+            btnHangup.classList.remove('hidden');
+
+            // 既存の音声要素があれば削除
+            const oldAudio = document.getElementById('remote-audio');
+            if (oldAudio) oldAudio.remove();
+
+            // 新しくオーディオ要素を作成して再生
+            const audio = document.createElement('audio');
+            audio.id = 'remote-audio';
+            audio.srcObject = remoteStream;
+            audio.autoplay = true;
+            document.body.appendChild(audio);
+        });
+
+        // 相手が切った、または通信が途切れた時
+        call.on('close', () => {
+            alert("通話が終了しました");
+            resetToData();
+        });
+
+        call.on('error', (err) => {
+            alert("通話エラー: " + err.message);
+            resetToData();
+        });
+    }
+
+    // 通話を終了ボタン
+    btnHangup.addEventListener('click', () => {
+        if (currentCall) {
+            currentCall.close();
+        }
+        resetToData();
+    });
+
+    // 画面状態を待受に戻す
+    function resetToData() {
+        if (currentCall) currentCall = null;
+        if (localStream) {
+            localStream.getTracks().forEach(track => track.stop());
+            localStream = null;
+        }
+        
+        const audio = document.getElementById('remote-audio');
+        if (audio) audio.remove();
+
+        btnHangup.classList.add('hidden');
+        
+        if (myNumber) {
+            statusBadge.textContent = `${myNumber} で着信待受中`;
+            statusBadge.className = "status-badge waiting";
+            dialSection.classList.remove('hidden');
+        } else {
+            statusBadge.textContent = "自分の番号を設定してください";
+            statusBadge.className = "status-badge";
+            myNumberSection.classList.remove('hidden');
+        }
+    }
+</script>
+
+</body>
+</html>
