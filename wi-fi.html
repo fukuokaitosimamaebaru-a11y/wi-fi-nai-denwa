@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wi-Fi 内線電話 (P2Pネットワーク版)</title>
+    <title>Wi-Fi 内線ビデオ電話 & 画面共有（全画面対応）</title>
     <style>
         :root {
             --primary-color: #007aff;
@@ -19,7 +19,7 @@
             background-color: var(--bg-color);
             color: var(--text-color);
             margin: 0;
-            padding: 20px;
+            padding: 15px;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -31,17 +31,17 @@
             background-color: var(--card-bg);
             border-radius: 20px;
             box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
-            padding: 30px;
+            padding: 25px;
             width: 100%;
-            max-width: 450px;
+            max-width: 500px;
             box-sizing: border-box;
         }
 
         h1 {
-            font-size: 24px;
+            font-size: 22px;
             text-align: center;
             margin-top: 0;
-            margin-bottom: 20px;
+            margin-bottom: 15px;
         }
 
         .status-badge {
@@ -51,28 +51,17 @@
             border-radius: 10px;
             background-color: #e5e5ea;
             font-weight: bold;
-            margin-bottom: 20px;
-            font-size: 15px;
+            margin-bottom: 15px;
+            font-size: 14px;
             transition: all 0.3s;
         }
 
-        .status-badge.waiting {
-            background-color: #e1f5fe;
-            color: #0288d1;
-        }
-
-        .status-badge.calling {
-            background-color: #fff9c4;
-            color: #f57f17;
-        }
-
-        .status-badge.connected {
-            background-color: var(--success-color);
-            color: white;
-        }
+        .status-badge.waiting { background-color: #e1f5fe; color: #0288d1; }
+        .status-badge.calling { background-color: #fff9c4; color: #f57f17; }
+        .status-badge.connected { background-color: var(--success-color); color: white; }
 
         .section {
-            margin-bottom: 20px;
+            margin-bottom: 15px;
             border: 1px solid #d1d1d6;
             border-radius: 12px;
             padding: 15px;
@@ -80,15 +69,15 @@
         }
 
         .section-title {
-            font-size: 14px;
+            font-size: 13px;
             font-weight: bold;
             margin-top: 0;
-            margin-bottom: 12px;
+            margin-bottom: 10px;
             color: #666;
         }
 
         .input-group {
-            margin-bottom: 15px;
+            margin-bottom: 10px;
         }
 
         input[type="tel"] {
@@ -108,40 +97,119 @@
             padding: 12px;
             border: none;
             border-radius: 10px;
-            font-size: 16px;
+            font-size: 15px;
             font-weight: 600;
             cursor: pointer;
             transition: background-color 0.2s;
+            margin-bottom: 8px;
         }
 
-        .btn-primary {
-            background-color: var(--primary-color);
+        .btn-primary { background-color: var(--primary-color); color: white; }
+        .btn-success { background-color: var(--success-color); color: white; }
+        .btn-danger { background-color: var(--danger-color); color: white; }
+        .btn-secondary { background-color: #8e8e93; color: white; }
+
+        .hidden { display: none; }
+
+        /* ビデオ表示エリア */
+        .video-container {
+            width: 100%;
+            background-color: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 15px;
+            position: relative;
+            aspect-ratio: 4 / 3;
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .local-video-box {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            width: 30%;
+            aspect-ratio: 4 / 3;
+            border: 2px solid white;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            z-index: 10;
+            background-color: #222;
+        }
+
+        /* 全画面化ボタンの装飾 */
+        .fullscreen-btn {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            width: 40px;
+            height: 40px;
+            background-color: rgba(0, 0, 0, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.4);
             color: white;
+            border-radius: 8px;
+            font-size: 18px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 11;
+            cursor: pointer;
+            user-select: none;
+            margin: 0;
+            padding: 0;
+        }
+        .fullscreen-btn:hover {
+            background-color: rgba(0, 0, 0, 0.8);
         }
 
-        .btn-success {
-            background-color: var(--success-color);
-            color: white;
+        /* ブラウザ全画面表示時のスタイル調整 */
+        .video-container:fullscreen {
+            width: 100vw;
+            height: 100vh;
+            aspect-ratio: auto;
+            border-radius: 0;
+            margin: 0;
+        }
+        .video-container:fullscreen video {
+            object-fit: contain;
+        }
+        /* Safari(iOS)用対策 */
+        .video-container:-webkit-full-screen {
+            width: 100vw;
+            height: 100vh;
+            aspect-ratio: auto;
         }
 
-        .btn-danger {
-            background-color: var(--danger-color);
-            color: white;
-            margin-top: 15px;
-        }
-
-        .hidden {
-            display: none;
+        .control-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 10px;
         }
     </style>
-    <!-- ネットワーク仲介用の外部ライブラリを1本だけ読み込みます -->
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 </head>
 <body>
 
 <div class="container">
-    <h1>Wi-Fi 内線電話</h1>
+    <h1>Wi-Fi 内線テレビ電話</h1>
     <div id="status" class="status-badge">通信システム準備中...</div>
+
+    <!-- ビデオ画面エリア（通話中のみ表示） -->
+    <div id="video-area" class="video-container hidden">
+        <!-- 相手の映像 -->
+        <video id="remote-video" autoplay playsinline></video>
+        <!-- 自分の映像（プレビュー） -->
+        <div class="local-video-box">
+            <video id="local-video" autoplay playsinline muted></video>
+        </div>
+        <!-- 全画面表示切り替えボタン -->
+        <button id="btn-fullscreen" class="fullscreen-btn" title="全画面表示">⛶</button>
+    </div>
 
     <!-- 自身の番号設定 -->
     <div id="my-number-section" class="section">
@@ -158,15 +226,20 @@
         <div class="input-group">
             <input type="tel" id="target-number" placeholder="090-0000-0000" maxlength="13">
         </div>
-        <button id="btn-call" class="btn-success">発信</button>
+        <button id="btn-call" class="btn-success">ビデオ通話を発信</button>
     </div>
 
-    <!-- 通話制御ボタン -->
-    <button id="btn-hangup" class="btn-danger hidden">通話を終了</button>
+    <!-- 通話中の拡張コントロールパネル -->
+    <div id="action-section" class="hidden">
+        <div class="control-grid">
+            <button id="btn-toggle-video" class="btn-secondary">カメラ: ON</button>
+            <button id="btn-share-screen" class="btn-primary">画面共有</button>
+        </div>
+        <button id="btn-hangup" class="btn-danger">通話を終了</button>
+    </div>
 </div>
 
 <script>
-    // 電話番号の自動ハイフン整形ロジック
     function formatPhoneNumber(input) {
         let value = input.value.replace(/\D/g, '');
         if (value.length > 3 && value.length <= 7) {
@@ -186,69 +259,75 @@
     const btnHangup = document.getElementById('btn-hangup');
     const dialSection = document.getElementById('dial-section');
     const myNumberSection = document.getElementById('my-number-section');
+    const videoArea = document.getElementById('video-area');
+    const actionSection = document.getElementById('action-section');
+    const btnToggleVideo = document.getElementById('btn-toggle-video');
+    const btnShareScreen = document.getElementById('btn-share-screen');
+    const btnFullscreen = document.getElementById('btn-fullscreen');
+
+    const localVideo = document.getElementById('local-video');
+    const remoteVideo = document.getElementById('remote-video');
 
     let peer = null;
     let currentCall = null;
     let localStream = null;
+    let screenStream = null;
     let myNumber = '';
+    let isVideoEnabled = true;
+    let isScreenSharing = false;
 
-    // 初期状態のメッセージ
     statusBadge.textContent = "自分の番号を設定してください";
 
-    // 自分の番号を登録して待受開始
+    async function initMedia() {
+        if (!localStream) {
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: true, 
+                    video: { facingMode: 'user' } 
+                });
+                localVideo.srcObject = localStream;
+            } catch (e) {
+                alert('カメラ・マイクのアクセス許可が必要です: ' + e.message);
+                throw e;
+            }
+        }
+    }
+
     document.getElementById('btn-register').addEventListener('click', () => {
         const rawNumber = myNumberInput.value.trim();
-        if (rawNumber.length < 13) {
-            alert('090番号を正しく入力してください（11桁）');
-            return;
-        }
+        if (rawNumber.length < 13) return alert('090番号を正しく入力してください');
 
         myNumber = rawNumber;
         statusBadge.textContent = "サーバーに接続中...";
         statusBadge.className = "status-badge waiting";
 
-        // 不要な文字を取り除いた一意のIDでPeerオブジェクトを作成
         const peerId = 'wifi-naisen-' + myNumber.replace(/-/g, '');
-        
-        // 無料のパブリックシグナリングサーバーを利用
-        peer = new Peer(peerId, {
-            debug: 1
-        });
+        peer = new Peer(peerId, { debug: 1 });
 
-        // 待受サーバーに繋がったら
-        peer.on('open', (id) => {
+        peer.on('open', () => {
             statusBadge.textContent = `${myNumber} で着信待受中`;
             myNumberSection.classList.add('hidden');
             dialSection.classList.remove('hidden');
         });
 
         peer.on('error', (err) => {
-            console.error(err);
-            if (err.type === 'unavailable-id') {
-                alert('この番号はすでに他の端末で待受中です。別な番号にしてください。');
-            } else {
-                alert('通信エラーが発生しました: ' + err.type);
-            }
-            resetToData();
+            alert('エラーが発生しました: ' + err.type);
+            resetToWaitState();
         });
 
-        // 着信時の処理
         peer.on('call', async (incomingCall) => {
-            // 相手のIDから電話番号の形に戻す
             const fromId = incomingCall.peer.replace('wifi-naisen-', '');
             const formattedFrom = fromId.replace(/^(\d{3})(\d{4})(\d{4})$/, '$1-$2-$3');
 
-            if (confirm(`${formattedFrom} から内線着信があります。\n応答しますか？`)) {
+            if (confirm(`${formattedFrom} からビデオ着信があります。出ますか？`)) {
                 try {
-                    statusBadge.textContent = "応答中...";
-                    // マイクの取得
-                    localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                    statusBadge.textContent = "接続中...";
+                    await initMedia();
                     
-                    // 電話に出て、自分の声を返す
+                    videoArea.classList.remove('hidden');
                     incomingCall.answer(localStream);
                     setupCallHandling(incomingCall, formattedFrom);
                 } catch (e) {
-                    alert("マイクの起動に失敗しました: " + e.message);
                     incomingCall.close();
                 }
             } else {
@@ -257,94 +336,154 @@
         });
     });
 
-    // ダイヤル発信（こちらからかける）
     document.getElementById('btn-call').addEventListener('click', async () => {
         const targetNumber = targetNumberInput.value.trim();
-        if (targetNumber.length < 13) {
-            alert('相手の090番号を正しく入力してください');
-            return;
-        }
-        if (targetNumber === myNumber) {
-            alert('自分の番号には発信できません');
-            return;
-        }
+        if (targetNumber.length < 13 || targetNumber === myNumber) return alert('発信先の番号が不正です');
 
         statusBadge.textContent = `${targetNumber} を呼出中...`;
         statusBadge.className = "status-badge calling";
         dialSection.classList.add('hidden');
-        btnHangup.classList.remove('hidden');
 
         try {
-            // 自分のマイクを取得
-            localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-            
-            // 相手のIDを特定して発信
+            await initMedia();
+            videoArea.classList.remove('hidden');
+
             const targetPeerId = 'wifi-naisen-' + targetNumber.replace(/-/g, '');
             const call = peer.call(targetPeerId, localStream);
             
             setupCallHandling(call, targetNumber);
         } catch (e) {
-            alert("発信エラー、またはマイクが許可されていません: " + e.message);
-            resetToData();
+            resetToWaitState();
         }
     });
 
-    // 通話イベントの管理（音声ストリームの紐付けなど）
     function setupCallHandling(call, partnerNumber) {
         currentCall = call;
+        actionSection.classList.remove('hidden');
 
-        // 相手の音声ストリームが届いた時の処理
         call.on('stream', (remoteStream) => {
             statusBadge.textContent = `通話中 (${partnerNumber})`;
             statusBadge.className = "status-badge connected";
-            dialSection.classList.add('hidden');
-            btnHangup.classList.remove('hidden');
-
-            // 既存の音声要素があれば削除
-            const oldAudio = document.getElementById('remote-audio');
-            if (oldAudio) oldAudio.remove();
-
-            // 新しくオーディオ要素を作成して再生
-            const audio = document.createElement('audio');
-            audio.id = 'remote-audio';
-            audio.srcObject = remoteStream;
-            audio.autoplay = true;
-            document.body.appendChild(audio);
+            remoteVideo.srcObject = remoteStream;
         });
 
-        // 相手が切った、または通信が途切れた時
         call.on('close', () => {
             alert("通話が終了しました");
-            resetToData();
-        });
-
-        call.on('error', (err) => {
-            alert("通話エラー: " + err.message);
-            resetToData();
+            resetToWaitState();
         });
     }
 
-    // 通話を終了ボタン
-    btnHangup.addEventListener('click', () => {
-        if (currentCall) {
-            currentCall.close();
+    btnToggleVideo.addEventListener('click', () => {
+        if (localStream && !isScreenSharing) {
+            isVideoEnabled = !isVideoEnabled;
+            localStream.getVideoTracks().forEach(track => track.enabled = isVideoEnabled);
+            btnToggleVideo.textContent = isVideoEnabled ? "カメラ: ON" : "カメラ: OFF";
         }
-        resetToData();
     });
 
-    // 画面状態を待受に戻す
-    function resetToData() {
+    btnShareScreen.addEventListener('click', async () => {
+        if (!currentCall) return;
+
+        if (!isScreenSharing) {
+            try {
+                screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+                const videoTrack = screenStream.getVideoTracks()[0];
+
+                const sender = currentCall.peerConnection.getSenders().find(s => s.track.kind === 'video');
+                if (sender) {
+                    sender.replaceTrack(videoTrack);
+                }
+
+                localVideo.srcObject = screenStream;
+                isScreenSharing = true;
+                btnShareScreen.textContent = "共有を停止";
+                btnToggleVideo.disabled = true;
+
+                videoTrack.onended = () => stopScreenShare();
+
+            } catch (e) {
+                console.error("画面共有エラー: " + e.message);
+            }
+        } else {
+            stopScreenShare();
+        }
+    });
+
+    function stopScreenShare() {
+        if (!isScreenSharing) return;
+        
+        if (screenStream) {
+            screenStream.getTracks().forEach(track => track.stop());
+        }
+
+        const videoTrack = localStream.getVideoTracks()[0];
+        const sender = currentCall.peerConnection.getSenders().find(s => s.track.kind === 'video');
+        if (sender && videoTrack) {
+            sender.replaceTrack(videoTrack);
+        }
+
+        localVideo.srcObject = localStream;
+        isScreenSharing = false;
+        btnShareScreen.textContent = "画面共有";
+        btnToggleVideo.disabled = false;
+    }
+
+    // 全画面表示 (Fullscreen API) のハンドリング
+    btnFullscreen.addEventListener('click', () => {
+        if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+            // 全画面表示を開始する（主要ブラウザおよびiOS/Safari対応）
+            if (videoArea.requestFullscreen) {
+                videoArea.requestFullscreen();
+            } else if (videoArea.webkitRequestFullscreen) {
+                videoArea.webkitRequestFullscreen();
+            }
+        } else {
+            // 全画面表示を解除する
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            } else if (document.webkitExitFullscreen) {
+                document.webkitExitFullscreen();
+            }
+        }
+    });
+
+    // フルスクリーンの状態変化を監視してボタンのテキスト（アイコン）を切り替える
+    function onFullscreenChange() {
+        const isFull = document.fullscreenElement || document.webkitFullscreenElement;
+        btnFullscreen.textContent = isFull ? "内" : "⛶";
+        btnFullscreen.title = isFull ? "通常のサイズに戻す" : "全画面表示";
+    }
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', onFullscreenChange);
+
+    btnHangup.addEventListener('click', () => {
+        if (currentCall) currentCall.close();
+        // 全画面表示中なら強制解除
+        if (document.fullscreenElement || document.webkitFullscreenElement) {
+            if (document.exitFullscreen) document.exitFullscreen();
+            else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+        }
+        resetToWaitState();
+    });
+
+    function resetToWaitState() {
+        stopScreenShare();
         if (currentCall) currentCall = null;
+        
         if (localStream) {
             localStream.getTracks().forEach(track => track.stop());
             localStream = null;
         }
-        
-        const audio = document.getElementById('remote-audio');
-        if (audio) audio.remove();
 
-        btnHangup.classList.add('hidden');
+        remoteVideo.srcObject = null;
+        localVideo.srcObject = null;
         
+        videoArea.classList.add('hidden');
+        actionSection.classList.add('hidden');
+        
+        isVideoEnabled = true;
+        btnToggleVideo.textContent = "カメラ: ON";
+
         if (myNumber) {
             statusBadge.textContent = `${myNumber} で着信待受中`;
             statusBadge.className = "status-badge waiting";
