@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wi-Fi 内線ビデオ電話 & 画面遠隔操作</title>
+    <title>Wi-Fi 内線ビデオ電話 & 直感遠隔操作</title>
     <style>
         :root {
             --primary-color: #007aff;
@@ -25,6 +25,7 @@
             align-items: center;
             min-height: 100vh;
             box-sizing: border-box;
+            user-select: none;
         }
 
         .container {
@@ -126,9 +127,10 @@
             width: 100%;
             height: 100%;
             object-fit: contain;
+            cursor: crosshair; /* 操作可能であることを直感的に示す */
         }
 
-        /* 通常時の自分ビデオ枠 */
+        /* 自分のカメラ映像（小窓） */
         .local-video-box {
             position: absolute;
             bottom: 10px;
@@ -140,10 +142,9 @@
             box-shadow: 0 4px 10px rgba(0,0,0,0.3);
             z-index: 10;
             background-color: #222;
-            transition: opacity 0.2s;
         }
 
-        /* 全画面ボタン */
+        /* 全画面化ボタン */
         .fullscreen-btn {
             position: absolute;
             bottom: 10px;
@@ -160,13 +161,16 @@
             align-items: center;
             z-index: 11;
             cursor: pointer;
-            user-select: none;
-            margin: 0;
-            padding: 0;
         }
-        .fullscreen-btn:hover { background-color: rgba(0, 0, 0, 0.8); }
 
-        /* 【重要】全画面表示になったときのスタイル */
+        /* 【重要】全画面表示になったら自分を消す設定 */
+        .video-container:fullscreen .local-video-box {
+            display: none !important;
+        }
+        .video-container:-webkit-full-screen .local-video-box {
+            display: none !important;
+        }
+
         .video-container:fullscreen {
             width: 100vw;
             height: 100vh;
@@ -174,15 +178,6 @@
             border-radius: 0;
             margin: 0;
         }
-        
-        /* 全画面表示のときは、内部の自分ビデオボックスを完全に非表示にする */
-        .video-container:fullscreen .local-video-box {
-            display: none !important;
-        }
-
-        /* Safari(iOS)用全画面対応 */
-        .video-container:-webkit-full-screen { width: 100vw; height: 100vh; }
-        .video-container:-webkit-full-screen .local-video-box { display: none !important; }
 
         .control-grid {
             display: grid;
@@ -191,18 +186,48 @@
             margin-top: 10px;
         }
 
-        /* 遠隔操作の位置を可視化するマーク（画面を操作された側に一瞬出るポインター） */
+        /* 操作された側に現れるリアルタイムポインター（ドラッグ軌跡） */
         #remote-pointer {
             position: absolute;
-            width: 20px;
-            height: 20px;
+            width: 16px;
+            height: 16px;
             border: 2px solid #ff3b30;
-            background-color: rgba(255, 59, 48, 0.4);
+            background-color: rgba(255, 59, 48, 0.6);
             border-radius: 50%;
             pointer-events: none;
             transform: translate(-50%, -50%);
             z-index: 999;
             display: none;
+            box-shadow: 0 0 8px rgba(255, 59, 48, 0.8);
+        }
+
+        /* テスト用：遠隔操作を実験するための動かせるターゲットブロック */
+        .test-sandbox {
+            margin-top: 15px;
+            background: #e5e5ea;
+            padding: 10px;
+            border-radius: 10px;
+            text-align: center;
+            position: relative;
+            height: 80px;
+            overflow: hidden;
+        }
+        .draggable-box {
+            position: absolute;
+            left: 40%;
+            top: 20px;
+            width: 80px;
+            height: 40px;
+            background-color: var(--primary-color);
+            color: white;
+            font-size: 12px;
+            font-weight: bold;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border-radius: 6px;
+            cursor: move;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
         }
     </style>
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
@@ -213,19 +238,13 @@
     <h1>Wi-Fi 内線テレビ電話</h1>
     <div id="status" class="status-badge">通信システム準備中...</div>
 
-    <!-- ビデオ画面エリア（通話中のみ表示） -->
+    <!-- ビデオ画面エリア -->
     <div id="video-area" class="video-container hidden">
-        <!-- 相手の映像 -->
         <video id="remote-video" autoplay playsinline></video>
-        
-        <!-- 操作された側の画面に表示される疑似ポインター -->
         <div id="remote-pointer"></div>
-
-        <!-- 自分の映像（プレビュー）：全画面時はCSSの:fullscreenによって自動で消えます -->
         <div id="local-video-container" class="local-video-box">
             <video id="local-video" autoplay playsinline muted></video>
         </div>
-        <!-- 全画面表示切り替えボタン -->
         <button id="btn-fullscreen" class="fullscreen-btn" title="全画面表示">⛶</button>
     </div>
 
@@ -247,7 +266,15 @@
         <button id="btn-call" class="btn-success">ビデオ通話を発信</button>
     </div>
 
-    <!-- 通話中の拡張コントロールパネル -->
+    <!-- 遠隔操作の動作実験用ボックス（画面共有した側のサイト内で動きます） -->
+    <div id="sandbox-section" class="section hidden">
+        <div class="section-title">操作実験用ミニ広場（画面共有時にここを遠隔ドラッグ可能）</div>
+        <div class="test-sandbox">
+            <div id="test-box" class="draggable-box">ドラッグ枠</div>
+        </div>
+    </div>
+
+    <!-- コントロールパネル -->
     <div id="action-section" class="hidden">
         <div class="control-grid">
             <button id="btn-toggle-video" class="btn-secondary">カメラ: ON</button>
@@ -279,6 +306,7 @@
     const myNumberSection = document.getElementById('my-number-section');
     const videoArea = document.getElementById('video-area');
     const actionSection = document.getElementById('action-section');
+    const sandboxSection = document.getElementById('sandbox-section');
     const btnToggleVideo = document.getElementById('btn-toggle-video');
     const btnShareScreen = document.getElementById('btn-share-screen');
     const btnFullscreen = document.getElementById('btn-fullscreen');
@@ -286,34 +314,51 @@
     const localVideo = document.getElementById('local-video');
     const remoteVideo = document.getElementById('remote-video');
     const remotePointer = document.getElementById('remote-pointer');
+    const testBox = document.getElementById('test-box');
 
     let peer = null;
     let currentCall = null;
-    let dataConnection = null; // 操作シグナル送信用のデータチャンネル
+    let dataConnection = null;
     let localStream = null;
     let screenStream = null;
     let myNumber = '';
     let isVideoEnabled = true;
     let isScreenSharing = false;
+    let isMouseDown = false;
+
+    // 自環境内でのテストボックスのドラッグローカル処理
+    let isDraggingLocal = false;
+    let offsetX, offsetY;
+    testBox.addEventListener('mousedown', (e) => {
+        isDraggingLocal = true;
+        offsetX = e.clientX - testBox.getBoundingClientRect().left;
+        offsetY = e.clientY - testBox.getBoundingClientRect().top;
+    });
+    document.addEventListener('mousemove', (e) => {
+        if (!isDraggingLocal) return;
+        const sandbox = document.querySelector('.test-sandbox').getBoundingClientRect();
+        let left = e.clientX - sandbox.left - offsetX;
+        let top = e.clientY - sandbox.top - offsetY;
+        testBox.style.left = `${Math.max(0, Math.min(left, sandbox.width - 80))}px`;
+        testBox.style.top = `${Math.max(0, Math.min(top, sandbox.height - 40))}px`;
+    });
+    document.addEventListener('mouseup', () => { isDraggingLocal = false; });
 
     statusBadge.textContent = "自分の番号を設定してください";
 
     async function initMedia() {
         if (!localStream) {
             try {
-                localStream = await navigator.mediaDevices.getUserMedia({ 
-                    audio: true, 
-                    video: { facingMode: 'user' } 
-                });
+                localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: { facingMode: 'user' } });
                 localVideo.srcObject = localStream;
             } catch (e) {
-                alert('カメラ・マイクのアクセス許可が必要です: ' + e.message);
+                alert('アクセス許可が必要です: ' + e.message);
                 throw e;
             }
         }
     }
 
-    // 待受開始
+    // 登録と着信監視
     document.getElementById('btn-register').addEventListener('click', () => {
         const rawNumber = myNumberInput.value.trim();
         if (rawNumber.length < 13) return alert('090番号を正しく入力してください');
@@ -329,39 +374,30 @@
             statusBadge.textContent = `${myNumber} で着信待受中`;
             myNumberSection.classList.add('hidden');
             dialSection.classList.remove('hidden');
+            sandboxSection.classList.remove('hidden'); // 実験場を表示
         });
 
-        // テキストデータの接続（遠隔操作用）を受信したとき
-        peer.on('connection', (conn) => {
-            setupDataHandling(conn);
-        });
+        peer.on('connection', (conn) => setupDataHandling(conn));
 
-        // ビデオ通話の着信を受信したとき
         peer.on('call', async (incomingCall) => {
             const fromId = incomingCall.peer.replace('wifi-naisen-', '');
             const formattedFrom = fromId.replace(/^(\d{3})(\d{4})(\d{4})$/, '$1-$2-$3');
-
-            if (confirm(`${formattedFrom} からビデオ着信があります。出ますか？`)) {
+            if (confirm(`${formattedFrom} から着信。出ますか？`)) {
                 try {
                     statusBadge.textContent = "接続中...";
                     await initMedia();
-                    
                     videoArea.classList.remove('hidden');
                     incomingCall.answer(localStream);
                     setupCallHandling(incomingCall, formattedFrom);
-                } catch (e) {
-                    incomingCall.close();
-                }
-            } else {
-                incomingCall.close();
-            }
+                } catch (e) { incomingCall.close(); }
+            } else { incomingCall.close(); }
         });
     });
 
-    // 発信ボタン
+    // 発信
     document.getElementById('btn-call').addEventListener('click', async () => {
         const targetNumber = targetNumberInput.value.trim();
-        if (targetNumber.length < 13 || targetNumber === myNumber) return alert('発信先の番号が不正です');
+        if (targetNumber.length < 13 || targetNumber === myNumber) return alert('発信先が不正です');
 
         statusBadge.textContent = `${targetNumber} を呼出中...`;
         statusBadge.className = "status-badge calling";
@@ -370,94 +406,92 @@
         try {
             await initMedia();
             videoArea.classList.remove('hidden');
-
             const targetPeerId = 'wifi-naisen-' + targetNumber.replace(/-/g, '');
             
-            // データ通信ラインを接続
             const conn = peer.connect(targetPeerId);
             setupDataHandling(conn);
 
-            // ビデオ通話を接続
             const call = peer.call(targetPeerId, localStream);
             setupCallHandling(call, targetNumber);
-        } catch (e) {
-            resetToWaitState();
-        }
+        } catch (e) { resetToWaitState(); }
     });
 
-    // ビデオ通話の制御
     function setupCallHandling(call, partnerNumber) {
         currentCall = call;
         actionSection.classList.remove('hidden');
-
         call.on('stream', (remoteStream) => {
             statusBadge.textContent = `通話中 (${partnerNumber})`;
             statusBadge.className = "status-badge connected";
             remoteVideo.srcObject = remoteStream;
         });
-
-        call.on('close', () => {
-            alert("通話が終了しました");
-            resetToWaitState();
-        });
+        call.on('close', () => { alert("通話終了"); resetToWaitState(); });
     }
 
-    // 操作データの制御（データチャンネル）
+    // 📡 【重要】直感遠隔リアルタイム操作通信（DataChannelデータ処理）
     function setupDataHandling(conn) {
         dataConnection = conn;
         conn.on('data', (data) => {
-            // 相手から操作座標（%位置）が送られてきた場合
-            if (data.type === 'click' && isScreenSharing) {
+            if (!isScreenSharing) return; // 画面共有している側のみイベントを実行する
+
+            // 相手から送られてきた比率座標を、自分の現在のブラウザ絶対座標に逆変換
+            const absX = window.innerWidth * data.x;
+            const absY = window.innerHeight * data.y;
+
+            if (data.action === 'down' || data.action === 'move') {
                 showRemotePointer(data.x, data.y);
-                executeLocalAction(data.x, data.y);
+            } else if (data.action === 'up') {
+                remotePointer.style.display = 'none';
+            }
+
+            // 該当座標にあるHTML要素を抽出
+            const targetEl = document.elementFromPoint(absX, absY);
+            if (!targetEl) return;
+
+            // 直感アクション擬似エミュレート
+            if (data.action === 'down') {
+                const mouseDownEvt = new MouseEvent('mousedown', { clientX: absX, clientY: absY, bubbles: true });
+                targetEl.dispatchEvent(mouseDownEvt);
+            } else if (data.action === 'move') {
+                const mouseMoveEvt = new MouseEvent('mousemove', { clientX: absX, clientY: absY, bubbles: true });
+                targetEl.dispatchEvent(mouseMoveEvt);
+            } else if (data.action === 'up') {
+                const mouseUpEvt = new MouseEvent('mouseup', { clientX: absX, clientY: absY, bubbles: true });
+                targetEl.dispatchEvent(mouseUpEvt);
+                // 通常クリックも発火
+                if (typeof targetEl.click === 'function') targetEl.click();
+            } else if (data.action === 'dblclick') {
+                const dblClickEvt = new MouseEvent('dblclick', { clientX: absX, clientY: absY, bubbles: true });
+                targetEl.dispatchEvent(dblClickEvt);
             }
         });
     }
 
-    // 相手がこちらの画面をクリックした場所を一時的に丸で示す
     function showRemotePointer(perX, perY) {
         const rect = videoArea.getBoundingClientRect();
-        const absoluteX = rect.width * perX;
-        const absoluteY = rect.height * perY;
-
-        remotePointer.style.left = `${absoluteX}px`;
-        remotePointer.style.top = `${absoluteY}px`;
+        remotePointer.style.left = `${rect.width * perX}px`;
+        remotePointer.style.top = `${rect.height * perY}px`;
         remotePointer.style.display = 'block';
-
-        // 1秒後にポインターを消す
-        setTimeout(() => {
-            remotePointer.style.display = 'none';
-        }, 1000);
     }
 
-    // 擬似的なクリックエフェクト（要素があればクリックイベントを発火）
-    function executeLocalAction(perX, perY) {
-        const absoluteX = window.innerWidth * perX;
-        const absoluteY = window.innerHeight * perY;
-        const element = document.elementFromPoint(absoluteX, absoluteY);
-        if (element && typeof element.click === 'function') {
-            element.click();
+    // 🖱️ 【操作側】相手の画面に対するマウスドラッグ・クリックイベントを検知して送信
+    function sendMouseEvent(actionName, e) {
+        if (!dataConnection || !dataConnection.open) return;
+        const rect = remoteVideo.getBoundingClientRect();
+        const pctX = (e.clientX - rect.left) / rect.width;
+        const pctY = (e.clientY - rect.top) / rect.height;
+        
+        // 映像の範囲内データのみ送信
+        if (pctX >= 0 && pctX <= 1 && pctY >= 0 && pctY <= 1) {
+            dataConnection.send({ action: actionName, x: pctX, y: pctY });
         }
     }
 
-    // 相手の映像画面をクリックしたとき、その比率座標を相手に送信して操作する
-    remoteVideo.addEventListener('click', (e) => {
-        if (!dataConnection || !dataConnection.open) return;
+    remoteVideo.addEventListener('mousedown', (e) => { isMouseDown = true; sendMouseEvent('down', e); });
+    remoteVideo.addEventListener('mousemove', (e) => { if (isMouseDown) sendMouseEvent('move', e); });
+    window.addEventListener('mouseup', (e) => { if (isMouseDown) { isMouseDown = false; sendMouseEvent('up', e); } });
+    remoteVideo.addEventListener('dblclick', (e) => { sendMouseEvent('dblclick', e); });
 
-        const rect = remoteVideo.getBoundingClientRect();
-        // クリックされた位置が、画面全体に対して何％の場所か計算
-        const clickX = (e.clientX - rect.left) / rect.width;
-        const clickY = (e.clientY - rect.top) / rect.height;
-
-        // 相手に座標情報を送信
-        dataConnection.send({
-            type: 'click',
-            x: clickX,
-            y: clickY
-        });
-    });
-
-    // カメラのON/OFF
+    // カメラ切り替え
     btnToggleVideo.addEventListener('click', () => {
         if (localStream && !isScreenSharing) {
             isVideoEnabled = !isVideoEnabled;
@@ -466,74 +500,51 @@
         }
     });
 
-    // 画面共有
+    // 画面共有処理
     btnShareScreen.addEventListener('click', async () => {
         if (!currentCall) return;
-
         if (!isScreenSharing) {
             try {
                 screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
                 const videoTrack = screenStream.getVideoTracks()[0];
-
                 const sender = currentCall.peerConnection.getSenders().find(s => s.track.kind === 'video');
-                if (sender) {
-                    sender.replaceTrack(videoTrack);
-                }
+                if (sender) sender.replaceTrack(videoTrack);
 
                 localVideo.srcObject = screenStream;
                 isScreenSharing = true;
                 btnShareScreen.textContent = "共有を停止";
                 btnToggleVideo.disabled = true;
-
                 videoTrack.onended = () => stopScreenShare();
-
-            } catch (e) {
-                console.error("画面共有エラー: " + e.message);
-            }
-        } else {
-            stopScreenShare();
-        }
+            } catch (e) { console.error(e); }
+        } else { stopScreenShare(); }
     });
 
     function stopScreenShare() {
         if (!isScreenSharing) return;
-        if (screenStream) {
-            screenStream.getTracks().forEach(track => track.stop());
-        }
-
+        if (screenStream) screenStream.getTracks().forEach(track => track.stop());
         const videoTrack = localStream.getVideoTracks()[0];
         const sender = currentCall.peerConnection.getSenders().find(s => s.track.kind === 'video');
-        if (sender && videoTrack) {
-            sender.replaceTrack(videoTrack);
-        }
-
+        if (sender && videoTrack) sender.replaceTrack(videoTrack);
         localVideo.srcObject = localStream;
         isScreenSharing = false;
         btnShareScreen.textContent = "画面共有";
         btnToggleVideo.disabled = false;
     }
 
-    // 全画面表示の切り替え
+    // 全画面表示制御
     btnFullscreen.addEventListener('click', () => {
         if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-            if (videoArea.requestFullscreen) {
-                videoArea.requestFullscreen();
-            } else if (videoArea.webkitRequestFullscreen) {
-                videoArea.webkitRequestFullscreen();
-            }
+            if (videoArea.requestFullscreen) videoArea.requestFullscreen();
+            else if (videoArea.webkitRequestFullscreen) videoArea.webkitRequestFullscreen();
         } else {
-            if (document.exitFullscreen) {
-                document.exitFullscreen();
-            } else if (document.webkitExitFullscreen) {
-                document.webkitExitFullscreen();
-            }
+            if (document.exitFullscreen) document.exitFullscreen();
+            else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
         }
     });
 
     function onFullscreenChange() {
         const isFull = document.fullscreenElement || document.webkitFullscreenElement;
         btnFullscreen.textContent = isFull ? "内" : "⛶";
-        btnFullscreen.title = isFull ? "通常のサイズに戻す" : "全画面表示";
     }
     document.addEventListener('fullscreenchange', onFullscreenChange);
     document.addEventListener('webkitfullscreenchange', onFullscreenChange);
@@ -552,18 +563,11 @@
         stopScreenShare();
         if (currentCall) currentCall = null;
         if (dataConnection) dataConnection = null;
-        
-        if (localStream) {
-            localStream.getTracks().forEach(track => track.stop());
-            localStream = null;
-        }
-
+        if (localStream) { localStream.getTracks().forEach(track => track.stop()); localStream = null; }
         remoteVideo.srcObject = null;
         localVideo.srcObject = null;
-        
         videoArea.classList.add('hidden');
         actionSection.classList.add('hidden');
-        
         isVideoEnabled = true;
         btnToggleVideo.textContent = "カメラ: ON";
 
@@ -575,6 +579,7 @@
             statusBadge.textContent = "自分の番号を設定してください";
             statusBadge.className = "status-badge";
             myNumberSection.classList.remove('hidden');
+            sandboxSection.classList.add('hidden');
         }
     }
 </script>
