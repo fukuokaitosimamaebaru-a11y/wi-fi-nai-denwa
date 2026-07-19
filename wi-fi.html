@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wi-Fi内線通信</title>
+    <title>Wi-Fi内線・外線通信</title>
     <!-- PeerJSライブラリ -->
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
@@ -66,6 +66,12 @@
             font-size: 26px;
             font-weight: bold;
             color: var(--line-green);
+            margin-bottom: 5px;
+        }
+
+        .login-sub {
+            font-size: 13px;
+            color: #666;
             margin-bottom: 30px;
         }
 
@@ -383,7 +389,8 @@
         <!-- 1. ログイン画面 -->
         <div id="login-screen">
             <div class="login-box">
-                <div class="login-logo">Wi-Fi内線通信</div>
+                <div class="login-logo">LINE風 通信システム</div>
+                <div class="login-sub">【外線・インターネット通信対応】</div>
                 <div class="input-group">
                     <label for="login-email">あなたのメールアドレス</label>
                     <input type="email" id="login-email" placeholder="example@mail.com" required>
@@ -400,7 +407,7 @@
         <div id="list-screen">
             <div class="screen-header">
                 <div class="screen-title">トーク</div>
-                <div id="my-account-display" class="my-account-tag">取得中...</div>
+                <div id="my-account-display" class="my-account-tag">回線準備中...</div>
             </div>
             
             <div class="add-friend-box">
@@ -441,22 +448,21 @@
 
     <script>
         let peer = null;
-        let activeConn = null; // 現在開いているチャットの接続インスタンス
+        let activeConn = null; // 現在アクティブな接続オブジェクト
         
         let myEmailStr = "";
         let myCodeStr = "";
         
-        // アプリ内データ構造
         let friends = [];       // { email, code, lastMessage, unreadCount }
         let chatLogs = {};      // { "email-code": [{sender, type, content}] }
-        let currentPeerKey = null; // 現在チャット中の "email-code"
+        let currentPeerKey = null; // 現在開いているトークのキー "email-code"
 
         window.onload = function() {
-            // ストレージから復元
-            const savedEmail = localStorage.getItem('v2_my_email');
-            const savedCode = localStorage.getItem('v2_my_code');
-            const savedFriends = localStorage.getItem('v2_friends');
-            const savedLogs = localStorage.getItem('v2_chat_logs');
+            // ローカルデータの復元
+            const savedEmail = localStorage.getItem('v3_my_email');
+            const savedCode = localStorage.getItem('v3_my_code');
+            const savedFriends = localStorage.getItem('v3_friends');
+            const savedLogs = localStorage.getItem('v3_chat_logs');
 
             if (savedEmail && savedCode) {
                 document.getElementById('login-email').value = savedEmail;
@@ -468,9 +474,9 @@
             renderTalkList();
         };
 
-        // ID生成用ハッシュ関数
+        // アカウント情報から外線（世界共通）で衝突しない固有のシグナリングIDを生成
         async function generateSecureId(email, code) {
-            const combinedString = `email:${email.trim().toLowerCase()}-code:${code.trim()}`;
+            const combinedString = `line-v3-global-email:${email.trim().toLowerCase()}-code:${code.trim()}`;
             let h1 = 1779033703, h2 = 302473454, h3 = 336245363, h4 = 502494325;
             for (let i = 0, k; i < combinedString.length; i++) {
                 k = combinedString.charCodeAt(i);
@@ -486,49 +492,57 @@
             return [(h1^h2^h3^h4)>>>0, (h2^h1)>>>0, (h3^h1)>>>0, (h4^h1)>>>0].map(x => x.toString(16).padStart(8,'0')).join('');
         }
 
-        // ログイン
+        // ログイン（クラウドサーバーへ接続開始）
         async function loginWithCredentials() {
             const emailInput = document.getElementById('login-email').value.trim();
             const codeInput = document.getElementById('login-code').value.trim();
 
             if (!emailInput || !emailInput.includes('@') || !codeInput) {
-                alert('入力を確認してください。');
+                alert('メールアドレスとコードを正しく入力してください。');
                 return;
             }
 
             myEmailStr = emailInput;
             myCodeStr = codeInput;
 
-            localStorage.setItem('v2_my_email', myEmailStr);
-            localStorage.setItem('v2_my_code', myCodeStr);
+            localStorage.setItem('v3_my_email', myEmailStr);
+            localStorage.setItem('v3_my_code', myCodeStr);
 
             document.getElementById('my-account-display').innerText = myEmailStr;
             document.getElementById('login-screen').style.display = 'none';
 
+            // 外線接続用にPeerJSのパブリッククラウドに接続
             const myPeerId = await generateSecureId(myEmailStr, myCodeStr);
+            
+            // クラウド接続用にデフォルト設定（STUNサーバーも自動適用されるため別のネットワーク間でも通信可能）
             peer = new Peer(myPeerId);
 
-            // 常時、他端末からの接続要求を待ち受ける
+            // 外部（他の場所の端末）からの着信を常時待機
             peer.on('connection', (incomingConn) => {
                 handleIncomingConnection(incomingConn);
             });
 
             peer.on('error', (err) => {
-                console.error(err);
+                console.error('PeerJSエラー:', err);
                 if(err.type === 'unavailable-id') {
-                    alert('このアカウントは既に別の場所で接続中、またはセッションが維持されています。');
+                    alert('このアカウントは他の端末で既にログイン中か、前のセッションがクラウド上に残っています。少し待ってから再度お試しください。');
                     location.reload();
+                } else if(err.type === 'peer-unavailable') {
+                    if(currentPeerKey) {
+                        document.getElementById('chat-status-text').innerText = '相手がオフラインです';
+                        document.getElementById('chat-status-text').style.color = '#ff3b30';
+                    }
                 }
             });
         }
 
-        // 手動での友だち追加
+        // 友達追加
         function addFriendFromInput() {
             const fEmail = document.getElementById('new-friend-email').value.trim();
             const fCode = document.getElementById('new-friend-code').value.trim();
 
             if(!fEmail || !fEmail.includes('@') || !fCode) {
-                alert('友だちのメアドとコードを正しく入力してください。');
+                alert('メアドとコードを入力してください。');
                 return;
             }
             if(fEmail.toLowerCase() === myEmailStr.toLowerCase() && fCode === myCodeStr) {
@@ -540,7 +554,7 @@
             const exists = friends.find(f => `${f.email}-${f.code}` === key);
             
             if(!exists) {
-                friends.push({ email: fEmail, code: fCode, lastMessage: '友だちが追加されました', unreadCount: 0 });
+                friends.push({ email: fEmail, code: fCode, lastMessage: '友だちに追加されました（外線対応）', unreadCount: 0 });
                 if(!chatLogs[key]) chatLogs[key] = [];
                 saveToStorage();
                 renderTalkList();
@@ -550,13 +564,13 @@
             document.getElementById('new-friend-code').value = '';
         }
 
-        // トーク相手一覧の描画
+        // トーク一覧の描画
         function renderTalkList() {
             const container = document.getElementById('talk-list-container');
             container.innerHTML = '';
 
             if (friends.length === 0) {
-                container.innerHTML = `<div style="text-align:center; color:#999; margin-top:40px; font-size:14px;">友だちを追加してトークを始めましょう</div>`;
+                container.innerHTML = `<div style="text-align:center; color:#999; margin-top:40px; font-size:14px;">友だちを追加して外線トークを始めましょう</div>`;
                 return;
             }
 
@@ -583,90 +597,94 @@
             });
         }
 
-        // 個別チャット画面を開く
+        // 個別チャット画面へ遷移
         async function openChatRoom(email, code) {
             currentPeerKey = `${email}-${code}`;
             
-            // 未読数をクリア
+            // 未読をリセット
             const targetFriend = friends.find(f => `${f.email}-${f.code}` === currentPeerKey);
             if(targetFriend) targetFriend.unreadCount = 0;
             saveToStorage();
             renderTalkList();
 
-            // 画面切り替え
+            // 画面UIのセットアップ
             document.getElementById('chat-title-name').innerText = email;
-            document.getElementById('chat-status-text').innerText = '接続試行中...';
+            document.getElementById('chat-status-text').innerText = '外線発信中（接続を確立しています）...';
+            document.getElementById('chat-status-text').style.color = '#ff9500';
             document.getElementById('chat-screen').style.display = 'flex';
 
-            // メッセージ描画
             renderMessages();
 
-            // P2P回線接続を確立しにいく
+            // 既存の接続があれば安全に切断
             if(activeConn) {
                 activeConn.close();
             }
 
+            // クラウドサーバー経由で相手のIDを探索して直接P2P外線接続
             const targetPeerId = await generateSecureId(email, code);
-            activeConn = peer.connect(targetPeerId);
+            activeConn = peer.connect(targetPeerId, {
+                reliable: true
+            });
             bindConnectionEvents(activeConn, currentPeerKey);
         }
 
-        // 外部（相手側）から接続された時の受け入れ処理
+        // 他の端末からの着信を検知した時の処理
         function handleIncomingConnection(incomingConn) {
-            // 相手側のPeerIDの割り出しは困難なため、相手から最初のメタデータ送出を促す、またはシグナリング段階で判定
-            incomingConn.on('open', () => {
-                // 相手が誰であるかを識別するための情報を要求するか、データパケットを待つ
-            });
-
             incomingConn.on('data', (data) => {
-                // データ送信元メタデータが含まれている場合
+                // 相手からメタデータ（誰が送信したか）が送られてきた場合
                 if(data.senderInfo) {
                     const senderKey = `${data.senderInfo.email}-${data.senderInfo.code}`;
                     
-                    // 自動で友だちリストに存在しない場合は追加
+                    // トークリストにまだいなければ自動で受け入れ追加
                     if(!friends.find(f => `${f.email}-${f.code}` === senderKey)) {
                         friends.push({ email: data.senderInfo.email, code: data.senderInfo.code, lastMessage: '', unreadCount: 0 });
                         if(!chatLogs[senderKey]) chatLogs[senderKey] = [];
                     }
 
-                    // メッセージをストレージに格納
+                    // データをログに書き込み
                     processReceivedData(senderKey, data);
                     
-                    // もし現在その人とチャット中なら接続を維持
+                    // 現在その相手とのチャット画面を開いている状態なら、この回線をアクティブストリームにする
                     if(currentPeerKey === senderKey && (!activeConn || !activeConn.open)) {
                         activeConn = incomingConn;
-                        document.getElementById('chat-status-text').innerText = 'オンライン';
-                        // イベント再バインド
+                        document.getElementById('chat-status-text').innerText = 'オンライン（外線接続完了）';
+                        document.getElementById('chat-status-text').style.color = '#4cd964';
                         bindConnectionEvents(activeConn, senderKey);
                     }
                 }
             });
         }
 
-        // 接続時のイベント紐付け
+        // イベントリスナーの同期化
         function bindConnectionEvents(conn, peerKey) {
             conn.on('open', () => {
                 if (currentPeerKey === peerKey) {
-                    document.getElementById('chat-status-text').innerText = 'オンライン';
+                    document.getElementById('chat-status-text').innerText = 'オンライン（外線接続完了）';
                     document.getElementById('chat-status-text').style.color = '#4cd964';
                 }
+                // 接続直後に、自分が誰であるかを相手側システムに通知（着信側の自動認識のため）
+                conn.send({
+                    type: 'system-handshake',
+                    content: 'ping',
+                    senderInfo: { email: myEmailStr, code: myCodeStr }
+                });
             });
 
             conn.on('data', (data) => {
-                if(data.senderInfo) {
+                if(data.senderInfo && data.type !== 'system-handshake') {
                     processReceivedData(peerKey, data);
                 }
             });
 
             conn.on('close', () => {
                 if (currentPeerKey === peerKey) {
-                    document.getElementById('chat-status-text').innerText = 'オフライン';
+                    document.getElementById('chat-status-text').innerText = 'オフライン（外線切断）';
                     document.getElementById('chat-status-text').style.color = '#ff3b30';
                 }
             });
         }
 
-        // 受信したデータをログと通知に振り分け
+        // 受信した実データを処理
         function processReceivedData(peerKey, data) {
             if(!chatLogs[peerKey]) chatLogs[peerKey] = [];
             
@@ -688,10 +706,10 @@
             }
         }
 
-        // メッセージ送信
+        // テキスト送信
         function sendMessage() {
             if (!activeConn || !activeConn.open) {
-                alert('相手がオフライン、またはまだ接続が完了していません。');
+                alert('相手回線に繋がっていません。相手がアプリを起動しているか確認してください。');
                 return;
             }
             const input = document.getElementById('message-input');
@@ -706,7 +724,7 @@
 
             activeConn.send(payload);
 
-            // ローカル保存
+            // 自身の画面・ログへの保存
             chatLogs[currentPeerKey].push({ sender: 'me', type: 'text', content: text });
             const targetFriend = friends.find(f => `${f.email}-${f.code}` === currentPeerKey);
             if(targetFriend) targetFriend.lastMessage = text;
@@ -717,12 +735,12 @@
             input.value = '';
         }
 
-        // 画像選択・送信
+        // 画像の送信
         function triggerFileInput() { document.getElementById('file-input').click(); }
         
         function handleFileSelect(event) {
             if (!activeConn || !activeConn.open) {
-                alert('相手と接続されていません。');
+                alert('相手回線と接続されていません。');
                 return;
             }
             const file = event.target.files[0];
@@ -750,7 +768,7 @@
             event.target.value = '';
         }
 
-        // メッセージ領域の描画
+        // ログの描画
         function renderMessages() {
             const container = document.getElementById('chat-container');
             container.innerHTML = '';
@@ -776,7 +794,7 @@
             container.scrollTop = container.scrollHeight;
         }
 
-        // リスト画面に戻る
+        // トークリストに戻る
         function backToTalkList() {
             currentPeerKey = null;
             document.getElementById('chat-screen').style.display = 'none';
@@ -787,9 +805,9 @@
             renderTalkList();
         }
 
-        // 友だちの削除
+        // 友だち削除
         function deleteCurrentFriend() {
-            if(confirm('このトークルームと友だち登録を削除しますか？履歴も消去されます。')) {
+            if(confirm('このトークルームと履歴、および友だち登録を完全に削除しますか？')) {
                 friends = friends.filter(f => `${f.email}-${f.code}` !== currentPeerKey);
                 delete chatLogs[currentPeerKey];
                 saveToStorage();
@@ -798,8 +816,8 @@
         }
 
         function saveToStorage() {
-            localStorage.setItem('v2_friends', JSON.stringify(friends));
-            localStorage.setItem('v2_chat_logs', JSON.stringify(chatLogs));
+            localStorage.setItem('v3_friends', JSON.stringify(friends));
+            localStorage.setItem('v3_chat_logs', JSON.stringify(chatLogs));
         }
 
         function handleKeyPress(event) {
