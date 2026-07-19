@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>メアド×コード紐付け Wi-Fi内線チャット</title>
+    <title>Wi-Fi内線通信</title>
     <!-- PeerJSライブラリ -->
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
@@ -12,6 +12,8 @@
             --my-msg-bg: #85e249;
             --peer-msg-bg: #ffffff;
             --text-color: #000000;
+            --line-green: #06c755;
+            --gray-bg: #f5f5f5;
         }
 
         * {
@@ -22,19 +24,30 @@
         }
 
         body {
-            background-color: #f5f5f5;
+            background-color: var(--gray-bg);
             display: flex;
-            flex-direction: column;
+            justify-content: center;
+            align-items: center;
             height: 100vh;
         }
 
-        /* ログイン画面 */
-        #login-screen {
-            position: fixed;
-            top: 0;
-            left: 0;
+        /* 画面全体のコンテナ */
+        .app-window {
             width: 100%;
-            height: 100%;
+            max-width: 450px;
+            height: 100vh;
+            background-color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        /* 1. ログイン画面 */
+        #login-screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
             background-color: #ffffff;
             display: flex;
             flex-direction: column;
@@ -46,15 +59,14 @@
 
         .login-box {
             width: 100%;
-            max-width: 360px;
             text-align: center;
         }
 
         .login-logo {
-            font-size: 24px;
+            font-size: 26px;
             font-weight: bold;
-            color: #06c755;
-            margin-bottom: 25px;
+            color: var(--line-green);
+            margin-bottom: 30px;
         }
 
         .input-group {
@@ -80,13 +92,13 @@
         }
 
         input:focus {
-            border-color: #06c755;
+            border-color: var(--line-green);
         }
 
         .main-btn {
             width: 100%;
             padding: 12px;
-            background-color: #06c755;
+            background-color: var(--line-green);
             color: white;
             border: none;
             border-radius: 8px;
@@ -96,59 +108,190 @@
             margin-top: 10px;
         }
 
-        /* チャット画面のヘッダー */
-        #chat-header {
-            background-color: #ffffff;
-            padding: 12px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            z-index: 10;
-        }
-
-        .header-row {
+        /* 2. トーク一覧画面 */
+        #list-screen {
             display: flex;
+            flex-direction: column;
+            height: 100%;
+            width: 100%;
+        }
+
+        .screen-header {
+            background-color: #ffffff;
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
             align-items: center;
-            gap: 8px;
-            margin-bottom: 8px;
         }
 
-        .header-row:last-child {
-            margin-bottom: 0;
-        }
-
-        .header-label {
-            font-size: 12px;
+        .screen-title {
+            font-size: 20px;
             font-weight: bold;
+        }
+
+        .my-account-tag {
+            font-size: 11px;
             color: #666;
-            min-width: 75px;
+            background-color: #eee;
+            padding: 3px 8px;
+            border-radius: 10px;
+            max-width: 200px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
-        .user-info-text {
-            font-size: 14px;
-            word-break: break-all;
-            flex: 1;
+        /* 友だち追加フォーム */
+        .add-friend-box {
+            padding: 10px 15px;
+            background-color: #fafafa;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            gap: 5px;
         }
 
-        .sub-btn {
-            padding: 8px 14px;
+        .add-friend-box input {
+            padding: 8px;
+            font-size: 13px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        .add-btn {
+            padding: 8px 12px;
             background-color: #242424;
             color: white;
             border: none;
             border-radius: 4px;
-            cursor: pointer;
-            font-size: 13px;
-            font-weight: bold;
-        }
-
-        #status-bar {
             font-size: 12px;
+            cursor: pointer;
             font-weight: bold;
-            color: #ff3b30;
         }
 
-        /* チャットエリア */
+        /* リストアイテム */
+        .talk-list {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .talk-item {
+            display: flex;
+            align-items: center;
+            padding: 15px;
+            border-bottom: 1px solid #f9f9f9;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .talk-item:hover {
+            background-color: #f5f5f5;
+        }
+
+        .talk-avatar {
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            background-color: #ccc;
+            margin-right: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 18px;
+        }
+
+        .talk-info {
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .talk-name {
+            font-weight: bold;
+            font-size: 15px;
+            margin-bottom: 3px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .talk-preview {
+            font-size: 13px;
+            color: #888;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .talk-meta {
+            text-align: right;
+            font-size: 11px;
+            color: #aaa;
+        }
+
+        .unread-badge {
+            background-color: #ff3b30;
+            color: white;
+            border-radius: 10px;
+            padding: 2px 6px;
+            font-size: 10px;
+            font-weight: bold;
+            display: inline-block;
+            margin-top: 4px;
+        }
+
+        /* 3. チャット個別画面 */
+        #chat-screen {
+            display: none;
+            flex-direction: column;
+            height: 100%;
+            width: 100%;
+            position: absolute;
+            top: 0; left: 0;
+            background-color: var(--line-bg);
+            z-index: 50;
+        }
+
+        .chat-header {
+            background-color: #ffffff;
+            padding: 10px 15px;
+            display: flex;
+            align-items: center;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .back-btn {
+            background: none;
+            border: none;
+            font-size: 22px;
+            cursor: pointer;
+            margin-right: 10px;
+            padding: 0 5px;
+        }
+
+        .chat-user-info {
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .chat-user-name {
+            font-weight: bold;
+            font-size: 16px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .chat-status {
+            font-size: 11px;
+            color: #ff3b30;
+            font-weight: bold;
+        }
+
+        /* 個別チャットのコンテナ */
         #chat-container {
             flex: 1;
-            background-color: var(--line-bg);
             overflow-y: auto;
             padding: 15px;
             display: flex;
@@ -161,13 +304,8 @@
             width: 100%;
         }
 
-        .message-row.me {
-            justify-content: flex-end;
-        }
-
-        .message-row.peer {
-            justify-content: flex-start;
-        }
+        .message-row.me { justify-content: flex-end; }
+        .message-row.peer { justify-content: flex-start; }
 
         .message-bubble {
             max-width: 70%;
@@ -198,7 +336,7 @@
             display: block;
         }
 
-        /* 下部入力エリア */
+        /* 入力パネル */
         #input-panel {
             background-color: #ffffff;
             padding: 10px;
@@ -227,7 +365,7 @@
         }
 
         #send-btn {
-            background-color: #06c755;
+            background-color: var(--line-green);
             color: white;
             border-radius: 20px;
             padding: 8px 20px;
@@ -236,68 +374,103 @@
             cursor: pointer;
         }
 
-        #file-input {
-            display: none;
-        }
+        #file-input { display: none; }
     </style>
 </head>
 <body>
 
-    <!-- 1. ログイン画面 -->
-    <div id="login-screen">
-        <div class="login-box">
-            <div class="login-logo">メアド×コード 認証チャット</div>
-            <div class="input-group">
-                <label for="login-email">あなたのメールアドレス</label>
-                <input type="email" id="login-email" placeholder="example@mail.com" required>
+    <div class="app-window">
+        <!-- 1. ログイン画面 -->
+        <div id="login-screen">
+            <div class="login-box">
+                <div class="login-logo">Wi-Fi内線通信</div>
+                <div class="input-group">
+                    <label for="login-email">あなたのメールアドレス</label>
+                    <input type="email" id="login-email" placeholder="example@mail.com" required>
+                </div>
+                <div class="input-group">
+                    <label for="login-code">認証用コード</label>
+                    <input type="text" id="login-code" placeholder="例: 1234" required>
+                </div>
+                <button class="main-btn" onclick="loginWithCredentials()">ログイン</button>
             </div>
-            <div class="input-group">
-                <label for="login-code">認証用コード (4桁以上の数字や英字など)</label>
-                <input type="text" id="login-code" placeholder="例: 1234 や abc" required>
+        </div>
+
+        <!-- 2. トーク一覧画面 -->
+        <div id="list-screen">
+            <div class="screen-header">
+                <div class="screen-title">トーク</div>
+                <div id="my-account-display" class="my-account-tag">取得中...</div>
             </div>
-            <button class="main-btn" onclick="loginWithCredentials()">入室する</button>
-        </div>
-    </div>
+            
+            <div class="add-friend-box">
+                <input type="email" id="new-friend-email" style="flex:2;" placeholder="友達のメールアドレス">
+                <input type="text" id="new-friend-code" style="flex:1;" placeholder="コード">
+                <button class="add-btn" onclick="addFriendFromInput()">追加</button>
+            </div>
 
-    <!-- 2. メインチャット画面ヘッダー -->
-    <div id="chat-header">
-        <div class="header-row">
-            <span class="header-label">あなた:</span>
-            <span id="my-info-display" class="user-info-text">—</span>
+            <!-- トーク相手が並ぶエリア -->
+            <div class="talk-list" id="talk-list-container">
+                <!-- 動的に生成されます -->
+            </div>
         </div>
-        <div class="header-row" style="gap: 5px;">
-            <span class="header-label">相手の情報:</span>
-            <input type="email" id="peer-email-input" style="flex: 2;" placeholder="相手のメールアドレス">
-            <input type="text" id="peer-code-input" style="flex: 1;" placeholder="相手のコード">
-            <button class="sub-btn" id="connect-btn" onclick="connectToPeer()">接続</button>
-        </div>
-        <div class="header-row" style="justify-content: space-between; margin-top: 5px; padding-top: 5px; border-top: 1px dashed #eee;">
-            <div id="status-bar">オフライン</div>
-        </div>
-    </div>
 
-    <!-- チャット表示エリア -->
-    <div id="chat-container"></div>
+        <!-- 3. チャット個別画面 -->
+        <div id="chat-screen">
+            <div class="chat-header">
+                <button class="back-btn" onclick="backToTalkList()">＜</button>
+                <div class="chat-user-info">
+                    <div class="chat-user-name" id="chat-title-name">相手の名前</div>
+                    <div class="chat-status" id="chat-status-text">未接続</div>
+                </div>
+                <button class="add-btn" style="background-color:#ff3b30;" onclick="deleteCurrentFriend()">削除</button>
+            </div>
 
-    <!-- 入力パネル -->
-    <div id="input-panel">
-        <button class="icon-btn" onclick="triggerFileInput()">➕</button>
-        <input type="file" id="file-input" accept="image/*" onchange="handleFileSelect(event)">
-        <input type="text" id="message-input" placeholder="メッセージを入力" onkeypress="handleKeyPress(event)">
-        <button id="send-btn" onclick="sendMessage()">送信</button>
+            <!-- チャットメッセージエリア -->
+            <div id="chat-container"></div>
+
+            <!-- メッセージ送信エリア -->
+            <div id="input-panel">
+                <button class="icon-btn" onclick="triggerFileInput()">➕</button>
+                <input type="file" id="file-input" accept="image/*" onchange="handleFileSelect(event)">
+                <input type="text" id="message-input" placeholder="メッセージを入力" onkeypress="handleKeyPress(event)">
+                <button id="send-btn" onclick="sendMessage()">送信</button>
+            </div>
+        </div>
     </div>
 
     <script>
         let peer = null;
-        let conn = null;
+        let activeConn = null; // 現在開いているチャットの接続インスタンス
+        
         let myEmailStr = "";
         let myCodeStr = "";
+        
+        // アプリ内データ構造
+        let friends = [];       // { email, code, lastMessage, unreadCount }
+        let chatLogs = {};      // { "email-code": [{sender, type, content}] }
+        let currentPeerKey = null; // 現在チャット中の "email-code"
 
-        // メールアドレスとコードを合体させて安全なハッシュIDを作る関数
+        window.onload = function() {
+            // ストレージから復元
+            const savedEmail = localStorage.getItem('v2_my_email');
+            const savedCode = localStorage.getItem('v2_my_code');
+            const savedFriends = localStorage.getItem('v2_friends');
+            const savedLogs = localStorage.getItem('v2_chat_logs');
+
+            if (savedEmail && savedCode) {
+                document.getElementById('login-email').value = savedEmail;
+                document.getElementById('login-code').value = savedCode;
+            }
+            if (savedFriends) friends = JSON.parse(savedFriends);
+            if (savedLogs) chatLogs = JSON.parse(savedLogs);
+
+            renderTalkList();
+        };
+
+        // ID生成用ハッシュ関数
         async function generateSecureId(email, code) {
             const combinedString = `email:${email.trim().toLowerCase()}-code:${code.trim()}`;
-            
-            // シンプルで高速なハッシュ生成処理
             let h1 = 1779033703, h2 = 302473454, h3 = 336245363, h4 = 502494325;
             for (let i = 0, k; i < combinedString.length; i++) {
                 k = combinedString.charCodeAt(i);
@@ -313,125 +486,242 @@
             return [(h1^h2^h3^h4)>>>0, (h2^h1)>>>0, (h3^h1)>>>0, (h4^h1)>>>0].map(x => x.toString(16).padStart(8,'0')).join('');
         }
 
-        // ログイン処理
+        // ログイン
         async function loginWithCredentials() {
             const emailInput = document.getElementById('login-email').value.trim();
             const codeInput = document.getElementById('login-code').value.trim();
 
-            if (!emailInput || !emailInput.includes('@')) {
-                alert('正しいメールアドレスを入力してください。');
-                return;
-            }
-            if (!codeInput) {
-                alert('認証用コードを入力してください。');
+            if (!emailInput || !emailInput.includes('@') || !codeInput) {
+                alert('入力を確認してください。');
                 return;
             }
 
             myEmailStr = emailInput;
             myCodeStr = codeInput;
 
-            document.getElementById('my-info-display').innerText = `${myEmailStr} [コード: ${myCodeStr}]`;
-            
-            // メアドとコードを紐付けた固有のP2P用IDを生成
-            const finalPeerId = await generateSecureId(myEmailStr, myCodeStr);
+            localStorage.setItem('v2_my_email', myEmailStr);
+            localStorage.setItem('v2_my_code', myCodeStr);
 
+            document.getElementById('my-account-display').innerText = myEmailStr;
             document.getElementById('login-screen').style.display = 'none';
-            updateStatus('回線を確立中...', '#ff9500');
 
-            // PeerJSの生成
-            peer = new Peer(finalPeerId);
+            const myPeerId = await generateSecureId(myEmailStr, myCodeStr);
+            peer = new Peer(myPeerId);
 
-            peer.on('open', (id) => {
-                updateStatus('待機中（相手からの接続を待っています）', '#007aff');
-            });
-
-            // 受信待機
+            // 常時、他端末からの接続要求を待ち受ける
             peer.on('connection', (incomingConn) => {
-                if (conn) return; 
-                conn = incomingConn;
-                setupConnection();
+                handleIncomingConnection(incomingConn);
             });
 
             peer.on('error', (err) => {
                 console.error(err);
-                if (err.type === 'unavailable-id') {
-                    alert('このメアドとコードの組み合わせはすでに接続中か、セッションが残っています。');
+                if(err.type === 'unavailable-id') {
+                    alert('このアカウントは既に別の場所で接続中、またはセッションが維持されています。');
                     location.reload();
-                } else {
-                    alert('エラーが発生しました: ' + err.type);
                 }
             });
         }
 
-        // 自分から相手に発信する処理
-        async function connectToPeer() {
-            const peerEmail = document.getElementById('peer-email-input').value.trim();
-            const peerCode = document.getElementById('peer-code-input').value.trim();
+        // 手動での友だち追加
+        function addFriendFromInput() {
+            const fEmail = document.getElementById('new-friend-email').value.trim();
+            const fCode = document.getElementById('new-friend-code').value.trim();
 
-            if (!peerEmail || !peerEmail.includes('@') || !peerCode) {
-                alert('相手のメールアドレスとコードを正しく入力してください。');
+            if(!fEmail || !fEmail.includes('@') || !fCode) {
+                alert('友だちのメアドとコードを正しく入力してください。');
+                return;
+            }
+            if(fEmail.toLowerCase() === myEmailStr.toLowerCase() && fCode === myCodeStr) {
+                alert('自分自身を追加することはできません。');
                 return;
             }
 
-            updateStatus('相手の組み合わせを検索して接続中...', '#ff9500');
+            const key = `${fEmail}-${fCode}`;
+            const exists = friends.find(f => `${f.email}-${f.code}` === key);
             
-            // 相手がログイン時に生成しているはずのIDを再現計算する
-            const targetPeerId = await generateSecureId(peerEmail, peerCode);
-            
-            conn = peer.connect(targetPeerId);
-            setupConnection();
+            if(!exists) {
+                friends.push({ email: fEmail, code: fCode, lastMessage: '友だちが追加されました', unreadCount: 0 });
+                if(!chatLogs[key]) chatLogs[key] = [];
+                saveToStorage();
+                renderTalkList();
+            }
+
+            document.getElementById('new-friend-email').value = '';
+            document.getElementById('new-friend-code').value = '';
         }
 
-        // 接続完了後のイベント設定
-        function setupConnection() {
-            conn.on('open', () => {
-                updateStatus('接続完了！LINE風トークが可能です', '#4cd964');
-                document.getElementById('connect-btn').disabled = true;
-                document.getElementById('peer-email-input').disabled = true;
-                document.getElementById('peer-code-input').disabled = true;
+        // トーク相手一覧の描画
+        function renderTalkList() {
+            const container = document.getElementById('talk-list-container');
+            container.innerHTML = '';
+
+            if (friends.length === 0) {
+                container.innerHTML = `<div style="text-align:center; color:#999; margin-top:40px; font-size:14px;">友だちを追加してトークを始めましょう</div>`;
+                return;
+            }
+
+            friends.forEach(f => {
+                const key = `${f.email}-${f.code}`;
+                const initial = f.email.charAt(0).toUpperCase();
+
+                const item = document.createElement('div');
+                item.className = 'talk-item';
+                item.onclick = () => openChatRoom(f.email, f.code);
+
+                item.innerHTML = `
+                    <div class="talk-avatar">${initial}</div>
+                    <div class="talk-info">
+                        <div class="talk-name">${f.email}</div>
+                        <div class="talk-preview">${f.lastMessage || ''}</div>
+                    </div>
+                    <div class="talk-meta">
+                        <div>コード:${f.code}</div>
+                        ${f.unreadCount > 0 ? `<span class="unread-badge">${f.unreadCount}</span>` : ''}
+                    </div>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        // 個別チャット画面を開く
+        async function openChatRoom(email, code) {
+            currentPeerKey = `${email}-${code}`;
+            
+            // 未読数をクリア
+            const targetFriend = friends.find(f => `${f.email}-${f.code}` === currentPeerKey);
+            if(targetFriend) targetFriend.unreadCount = 0;
+            saveToStorage();
+            renderTalkList();
+
+            // 画面切り替え
+            document.getElementById('chat-title-name').innerText = email;
+            document.getElementById('chat-status-text').innerText = '接続試行中...';
+            document.getElementById('chat-screen').style.display = 'flex';
+
+            // メッセージ描画
+            renderMessages();
+
+            // P2P回線接続を確立しにいく
+            if(activeConn) {
+                activeConn.close();
+            }
+
+            const targetPeerId = await generateSecureId(email, code);
+            activeConn = peer.connect(targetPeerId);
+            bindConnectionEvents(activeConn, currentPeerKey);
+        }
+
+        // 外部（相手側）から接続された時の受け入れ処理
+        function handleIncomingConnection(incomingConn) {
+            // 相手側のPeerIDの割り出しは困難なため、相手から最初のメタデータ送出を促す、またはシグナリング段階で判定
+            incomingConn.on('open', () => {
+                // 相手が誰であるかを識別するための情報を要求するか、データパケットを待つ
             });
 
-            // データ受信時の処理
-            conn.on('data', (data) => {
-                if (data.type === 'text') {
-                    appendMessage('peer', data.content);
-                } else if (data.type === 'image') {
-                    appendImage('peer', data.content);
+            incomingConn.on('data', (data) => {
+                // データ送信元メタデータが含まれている場合
+                if(data.senderInfo) {
+                    const senderKey = `${data.senderInfo.email}-${data.senderInfo.code}`;
+                    
+                    // 自動で友だちリストに存在しない場合は追加
+                    if(!friends.find(f => `${f.email}-${f.code}` === senderKey)) {
+                        friends.push({ email: data.senderInfo.email, code: data.senderInfo.code, lastMessage: '', unreadCount: 0 });
+                        if(!chatLogs[senderKey]) chatLogs[senderKey] = [];
+                    }
+
+                    // メッセージをストレージに格納
+                    processReceivedData(senderKey, data);
+                    
+                    // もし現在その人とチャット中なら接続を維持
+                    if(currentPeerKey === senderKey && (!activeConn || !activeConn.open)) {
+                        activeConn = incomingConn;
+                        document.getElementById('chat-status-text').innerText = 'オンライン';
+                        // イベント再バインド
+                        bindConnectionEvents(activeConn, senderKey);
+                    }
+                }
+            });
+        }
+
+        // 接続時のイベント紐付け
+        function bindConnectionEvents(conn, peerKey) {
+            conn.on('open', () => {
+                if (currentPeerKey === peerKey) {
+                    document.getElementById('chat-status-text').innerText = 'オンライン';
+                    document.getElementById('chat-status-text').style.color = '#4cd964';
                 }
             });
 
-            // 切断時
-            conn.on('close', () => {
-                updateStatus('切断されました', '#ff3b30');
-                conn = null;
-                document.getElementById('connect-btn').disabled = false;
-                document.getElementById('peer-email-input').disabled = false;
-                document.getElementById('peer-code-input').disabled = false;
+            conn.on('data', (data) => {
+                if(data.senderInfo) {
+                    processReceivedData(peerKey, data);
+                }
             });
+
+            conn.on('close', () => {
+                if (currentPeerKey === peerKey) {
+                    document.getElementById('chat-status-text').innerText = 'オフライン';
+                    document.getElementById('chat-status-text').style.color = '#ff3b30';
+                }
+            });
+        }
+
+        // 受信したデータをログと通知に振り分け
+        function processReceivedData(peerKey, data) {
+            if(!chatLogs[peerKey]) chatLogs[peerKey] = [];
+            
+            chatLogs[peerKey].push({ sender: 'peer', type: data.type, content: data.content });
+
+            const targetFriend = friends.find(f => `${f.email}-${f.code}` === peerKey);
+            if(targetFriend) {
+                targetFriend.lastMessage = data.type === 'text' ? data.content : '[画像]';
+                if(currentPeerKey !== peerKey) {
+                    targetFriend.unreadCount = (targetFriend.unreadCount || 0) + 1;
+                }
+            }
+
+            saveToStorage();
+            renderTalkList();
+
+            if(currentPeerKey === peerKey) {
+                renderMessages();
+            }
         }
 
         // メッセージ送信
         function sendMessage() {
-            if (!conn || !conn.open) {
-                alert('相手とまだ繋がっていません。相手のメアドとコードを入力して「接続」を押すか、相手からの接続を待ってください。');
+            if (!activeConn || !activeConn.open) {
+                alert('相手がオフライン、またはまだ接続が完了していません。');
                 return;
             }
             const input = document.getElementById('message-input');
             const text = input.value.trim();
             if (!text) return;
 
-            conn.send({ type: 'text', content: text });
-            appendMessage('me', text);
+            const payload = {
+                type: 'text',
+                content: text,
+                senderInfo: { email: myEmailStr, code: myCodeStr }
+            };
+
+            activeConn.send(payload);
+
+            // ローカル保存
+            chatLogs[currentPeerKey].push({ sender: 'me', type: 'text', content: text });
+            const targetFriend = friends.find(f => `${f.email}-${f.code}` === currentPeerKey);
+            if(targetFriend) targetFriend.lastMessage = text;
+
+            saveToStorage();
+            renderMessages();
+            renderTalkList();
             input.value = '';
         }
 
-        // 画像選択関係
-        function triggerFileInput() {
-            document.getElementById('file-input').click();
-        }
-
+        // 画像選択・送信
+        function triggerFileInput() { document.getElementById('file-input').click(); }
+        
         function handleFileSelect(event) {
-            if (!conn || !conn.open) {
+            if (!activeConn || !activeConn.open) {
                 alert('相手と接続されていません。');
                 return;
             }
@@ -441,58 +731,79 @@
             const reader = new FileReader();
             reader.onload = function(e) {
                 const base64Data = e.target.result;
-                conn.send({ type: 'image', content: base64Data });
-                appendImage('me', base64Data);
+                const payload = {
+                    type: 'image',
+                    content: base64Data,
+                    senderInfo: { email: myEmailStr, code: myCodeStr }
+                };
+                activeConn.send(payload);
+
+                chatLogs[currentPeerKey].push({ sender: 'me', type: 'image', content: base64Data });
+                const targetFriend = friends.find(f => `${f.email}-${f.code}` === currentPeerKey);
+                if(targetFriend) targetFriend.lastMessage = '[画像]';
+
+                saveToStorage();
+                renderMessages();
+                renderTalkList();
             };
             reader.readAsDataURL(file);
-            event.target.value = ''; 
+            event.target.value = '';
         }
 
-        // チャットログへのレンダリング
-        function appendMessage(sender, text) {
+        // メッセージ領域の描画
+        function renderMessages() {
             const container = document.getElementById('chat-container');
-            const row = document.createElement('div');
-            row.className = `message-row ${sender}`;
-            
-            const bubble = document.createElement('div');
-            bubble.className = 'message-bubble';
-            bubble.innerText = text;
-            
-            row.appendChild(bubble);
-            container.appendChild(row);
+            container.innerHTML = '';
+
+            const logs = chatLogs[currentPeerKey] || [];
+            logs.forEach(log => {
+                const row = document.createElement('div');
+                row.className = `message-row ${log.sender}`;
+                const bubble = document.createElement('div');
+                bubble.className = 'message-bubble';
+
+                if(log.type === 'text') {
+                    bubble.innerText = log.content;
+                } else if(log.type === 'image') {
+                    const img = document.createElement('img');
+                    img.src = log.content;
+                    img.onload = () => { container.scrollTop = container.scrollHeight; };
+                    bubble.appendChild(img);
+                }
+                row.appendChild(bubble);
+                container.appendChild(row);
+            });
             container.scrollTop = container.scrollHeight;
         }
 
-        function appendImage(sender, base64Data) {
-            const container = document.getElementById('chat-container');
-            const row = document.createElement('div');
-            row.className = `message-row ${sender}`;
-            
-            const bubble = document.createElement('div');
-            bubble.className = 'message-bubble';
-            
-            const img = document.createElement('img');
-            img.src = base64Data;
-            
-            bubble.appendChild(img);
-            row.appendChild(bubble);
-            container.appendChild(row);
-            
-            img.onload = () => {
-                container.scrollTop = container.scrollHeight;
-            };
+        // リスト画面に戻る
+        function backToTalkList() {
+            currentPeerKey = null;
+            document.getElementById('chat-screen').style.display = 'none';
+            if(activeConn) {
+                activeConn.close();
+                activeConn = null;
+            }
+            renderTalkList();
         }
 
-        function handleKeyPress(event) {
-            if (event.key === 'Enter') {
-                sendMessage();
+        // 友だちの削除
+        function deleteCurrentFriend() {
+            if(confirm('このトークルームと友だち登録を削除しますか？履歴も消去されます。')) {
+                friends = friends.filter(f => `${f.email}-${f.code}` !== currentPeerKey);
+                delete chatLogs[currentPeerKey];
+                saveToStorage();
+                backToTalkList();
             }
         }
 
-        function updateStatus(text, color) {
-            const bar = document.getElementById('status-bar');
-            bar.innerText = text;
-            bar.style.color = color;
+        function saveToStorage() {
+            localStorage.setItem('v2_friends', JSON.stringify(friends));
+            localStorage.setItem('v2_chat_logs', JSON.stringify(chatLogs));
+        }
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') sendMessage();
         }
     </script>
 </body>
